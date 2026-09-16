@@ -1,0 +1,148 @@
+:root {
+    --bg-main: #0f0f12;
+    --bg-card: #18181c;
+    --bg-card-hover: #222228;
+    --accent-red: #e50914;
+    --accent-gold: #ffc107;
+    --text-primary: #ffffff;
+    --text-muted: #a0a0ab;
+    --border-color: #2a2a32;
+}
+
+body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+}
+
+/* Navbar */
+.navbar {
+    background: rgba(15, 15, 18, 0.9) !important;
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border-color) !important;
+}
+
+.brand-title {
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(45deg, #e50914, #ff5252);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Tarjetas Generales */
+.card-cine {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-header-cine {
+    background-color: transparent;
+    border-bottom: 1px solid var(--border-color);
+    padding: 1rem 1.25rem;
+    font-weight: 700;
+}
+
+/* Inputs y Formularios */
+.form-control, .form-select {
+    background-color: #121215;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: #1a1a20;
+    border-color: var(--accent-red);
+    color: var(--text-primary);
+    box-shadow: 0 0 0 0.25rem rgba(229, 9, 20, 0.25);
+}
+
+.form-control:disabled {
+    background-color: #0a0a0c;
+    border-color: #1f1f24;
+}
+
+/* Slider Personalizado */
+.form-range::-webkit-slider-thumb {
+    background: var(--accent-red);
+}
+
+/* Tabla Visual Estilizada */
+.table-responsive {
+    border-radius: 0 0 14px 14px;
+}
+
+.table-cine {
+    --bs-table-bg: transparent;
+    --bs-table-color: var(--text-primary);
+    margin-bottom: 0;
+}
+
+.table-cine thead {
+    background-color: #121215;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.table-cine thead th {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 1rem;
+}
+
+.table-cine tbody tr {
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.15s ease;
+}
+
+.table-cine tbody tr:hover {
+    background-color: var(--bg-card-hover);
+}
+
+/* Badges y Elementos Destacados */
+.badge-calificacion {
+    background: rgba(255, 193, 7, 0.15);
+    color: var(--accent-gold);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    font-weight: 700;
+    padding: 0.4em 0.7em;
+    border-radius: 6px;
+}
+
+.badge-categoria {
+    background: rgba(13, 110, 253, 0.15);
+    color: #6ea8fe;
+    border: 1px solid rgba(13, 110, 253, 0.3);
+    border-radius: 6px;
+}
+
+/* Botones con Efecto Glow */
+.btn-red {
+    background-color: var(--accent-red);
+    color: #fff;
+    border: none;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.btn-red:hover {
+    background-color: #f6121d;
+    color: #fff;
+    box-shadow: 0 0 15px rgba(229, 9, 20, 0.5);
+}
+
+/* Modal Estilizado */
+.modal-content-cine {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+}
