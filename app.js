@@ -6,13 +6,13 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyAifRBdl7eQZ78kkX0NZW7bH7Ph__pfcDI",
-    authDomain: "gestor-cinefilo-web.firebaseapp.com",
-    projectId: "gestor-cinefilo-web",
-    storageBucket: "gestor-cinefilo-web.firebasestorage.app",
-    messagingSenderId: "1004373304427",
-    appId: "1:1004373304427:web:e5b438395f54817613bd2e",
-    measurementId: "G-X9RRQ8GCJM"
+  apiKey: "AIzaSyAifRBdl7eQZ78kkX0NZW7bH7Ph__pfcdI",
+  authDomain: "gestor-cinefilo-web.firebaseapp.com",
+  projectId: "gestor-cinefilo-web",
+  storageBucket: "gestor-cinefilo-web.firebasestorage.app",
+  messagingSenderId: "1004373304427",
+  appId: "1:1004373304427:web:e5b438395f54817613bd2e",
+  measurementId: "G-X9RRQ8GCJM"
 };
 
 const app = initializeApp(firebaseConfig);
