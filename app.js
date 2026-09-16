@@ -1,77 +1,114 @@
-const SESSION_KEY = 'cinefilo_usuario_activo';
-const usuarioActual = localStorage.getItem(SESSION_KEY);
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { 
+    getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, 
+    getDoc, getDocs, query, where, onSnapshot 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Guard de Navegación
-if (!usuarioActual) {
-    window.location.href = 'login.html';
-}
+const firebaseConfig = {
+    apiKey: "AIzaSyAifRBdl7eQZ78kkX0NZW7bH7Ph__pfcDI",
+    authDomain: "gestor-cinefilo-web.firebaseapp.com",
+    projectId: "gestor-cinefilo-web",
+    storageBucket: "gestor-cinefilo-web.firebasestorage.app",
+    messagingSenderId: "1004373304427",
+    appId: "1:1004373304427:web:e5b438395f54817613bd2e",
+    measurementId: "G-X9RRQ8GCJM"
+};
 
-const STORAGE_KEY = `cinefilo_peliculas_db_${usuarioActual}`;
-let modalEstadisticasBS = null;
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-document.addEventListener('DOMContentLoaded', () => {
-    const labelUser = document.getElementById('nombreUsuarioActivo');
-    if (labelUser) labelUser.innerText = usuarioActual.toUpperCase();
+let usuarioActual = null;
+let peliculasCache = [];
+let peliculaSeleccionadaParaRec = null;
+let modalRecomendarBS, modalBuzonBS, modalEstadisticasBS;
 
+// Verificar sesión
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+        window.location.href = 'login.html';
+        return;
+    }
+    usuarioActual = user;
+
+    // Obtener nombre de usuario
+    const uDoc = await getDoc(doc(db, "usuarios", user.uid));
+    if (uDoc.exists()) {
+        document.getElementById('nombreUsuarioActivo').innerText = uDoc.data().nombre.toUpperCase();
+    }
+
+    inicializarModales();
+    escucharPeliculasEnTiempoReal();
+    escucharRecomendacionesEnTiempoReal();
+});
+
+document.getElementById('btnCerrarSesion').addEventListener('click', () => {
+    if (confirm('¿Cerrar sesión?')) signOut(auth);
+});
+
+// Modales Bootstrap
+function inicializarModales() {
+    modalRecomendarBS = new bootstrap.Modal(document.getElementById('modalRecomendar'));
+    modalBuzonBS = new bootstrap.Modal(document.getElementById('modalBuzon'));
     modalEstadisticasBS = new bootstrap.Modal(document.getElementById('modalEstadisticas'));
     document.getElementById('fechaVista').valueAsDate = new Date();
     document.getElementById('formularioPelicula').addEventListener('submit', guardarPelicula);
-    cargarTabla();
-});
-
-function cerrarSesion() {
-    if (confirm('¿Deseas cerrar tu sesión?')) {
-        localStorage.removeItem(SESSION_KEY);
-        window.location.href = 'login.html';
-    }
 }
 
-// --- PERSISTENCIA LOCALSTORAGE ---
-function obtenerPeliculas() {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+// --- ESCUCHAR FIRESTORE EN TIEMPO REAL ---
+function escucharPeliculasEnTiempoReal() {
+    const q = query(collection(db, "peliculas"), where("uid", "==", usuarioActual.uid));
+    onSnapshot(q, (snapshot) => {
+        peliculasCache = [];
+        snapshot.forEach(docSnap => {
+            peliculasCache.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        cargarTabla(peliculasCache);
+    });
 }
 
-function guardarPeliculasEnStorage(peliculas) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(peliculas));
+function escucharRecomendacionesEnTiempoReal() {
+    const q = query(collection(db, "recomendaciones"), where("paraUid", "==", usuarioActual.uid));
+    onSnapshot(q, (snapshot) => {
+        const badge = document.getElementById('badgeNotificaciones');
+        const count = snapshot.docs.filter(d => !d.data().leida).length;
+        if (count > 0) {
+            badge.innerText = count;
+            badge.classList.remove('d-none');
+        } else {
+            badge.classList.add('d-none');
+        }
+    });
 }
 
-// --- OPERACIONES CRUD ---
-function guardarPelicula(e) {
+// --- CRUD ---
+async function guardarPelicula(e) {
     e.preventDefault();
     const id = document.getElementById('peliculaId').value;
-    const peliculas = obtenerPeliculas();
 
-    const nuevaPelicula = {
-        id: id ? Number(id) : Date.now(),
+    const data = {
+        uid: usuarioActual.uid,
         titulo: document.getElementById('titulo').value.trim(),
         anio: Number(document.getElementById('anio').value) || null,
         director: document.getElementById('director').value.trim(),
         generoPrincipal: document.getElementById('generoPrincipal').value.trim(),
-        generosSecundarios: document.getElementById('generosSecundarios').value.trim(),
         categoria: document.getElementById('categoria').value,
         fechaVista: document.getElementById('fechaVista').value,
         calificacion: Number(document.getElementById('calificacion').value),
-        esRecomendada: document.getElementById('esRecomendada').checked,
-        quienRecomendo: document.getElementById('quienRecomendo').value.trim(),
-        laRecomendaria: document.getElementById('laRecomendaria').checked,
-        reseniaNotas: document.getElementById('reseniaNotas').value.trim(),
-        ultimaActualizacion: new Date().toISOString()
+        reseniaNotas: document.getElementById('reseniaNotas').value.trim()
     };
 
     if (id) {
-        const index = peliculas.findIndex(p => p.id === Number(id));
-        if (index !== -1) peliculas[index] = nuevaPelicula;
+        await updateDoc(doc(db, "peliculas", id), data);
     } else {
-        peliculas.push(nuevaPelicula);
+        await addDoc(collection(db, "peliculas"), data);
     }
 
-    guardarPeliculasEnStorage(peliculas);
     limpiarFormulario();
-    cargarTabla();
 }
 
-function cargarTabla(lista = obtenerPeliculas()) {
+function cargarTabla(lista) {
     const cuerpo = document.getElementById('cuerpoTabla');
     const contador = document.getElementById('contadorPeliculas');
     cuerpo.innerHTML = '';
@@ -79,7 +116,7 @@ function cargarTabla(lista = obtenerPeliculas()) {
     if (contador) contador.innerText = `${lista.length} películas`;
 
     if (lista.length === 0) {
-        cuerpo.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-muted"><i class="bi bi-film fs-1 d-block mb-2"></i>No hay películas en tu catálogo.</td></tr>`;
+        cuerpo.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-muted"><i class="bi bi-cloud-slash fs-1 d-block mb-2"></i>No tienes películas registradas en la nube.</td></tr>`;
         return;
     }
 
@@ -95,17 +132,17 @@ function cargarTabla(lista = obtenerPeliculas()) {
             <td><span class="badge badge-categoria">${p.categoria}</span></td>
             <td><span class="badge-calificacion">★ ${p.calificacion}/10</span></td>
             <td class="text-end">
-                <button class="btn btn-sm btn-outline-light me-1 border-0" onclick="editarPelicula(${p.id})"><i class="bi bi-pencil-fill text-warning"></i></button>
-                <button class="btn btn-sm btn-outline-light border-0" onclick="eliminarPelicula(${p.id})"><i class="bi bi-trash-fill text-danger"></i></button>
+                <button class="btn btn-sm btn-outline-warning me-1 border-0" onclick="window.prepararRecomendacion('${p.id}')" title="Recomendar a un amigo"><i class="bi bi-send-fill"></i></button>
+                <button class="btn btn-sm btn-outline-light me-1 border-0" onclick="window.editarPelicula('${p.id}')"><i class="bi bi-pencil-fill text-warning"></i></button>
+                <button class="btn btn-sm btn-outline-light border-0" onclick="window.eliminarPelicula('${p.id}')"><i class="bi bi-trash-fill text-danger"></i></button>
             </td>
         `;
         cuerpo.appendChild(fila);
     });
 }
 
-function editarPelicula(id) {
-    const peliculas = obtenerPeliculas();
-    const p = peliculas.find(item => item.id === id);
+window.editarPelicula = (id) => {
+    const p = peliculasCache.find(item => item.id === id);
     if (!p) return;
 
     document.getElementById('peliculaId').value = p.id;
@@ -113,107 +150,141 @@ function editarPelicula(id) {
     document.getElementById('anio').value = p.anio || '';
     document.getElementById('director').value = p.director || '';
     document.getElementById('generoPrincipal').value = p.generoPrincipal || '';
-    document.getElementById('generosSecundarios').value = p.generosSecundarios || '';
     document.getElementById('categoria').value = p.categoria;
     document.getElementById('fechaVista').value = p.fechaVista || '';
     document.getElementById('calificacion').value = p.calificacion;
     document.getElementById('valCalificacion').innerText = p.calificacion;
-    document.getElementById('esRecomendada').checked = p.esRecomendada;
-    document.getElementById('quienRecomendo').disabled = !p.esRecomendada;
-    document.getElementById('quienRecomendo').value = p.quienRecomendo || '';
-    document.getElementById('laRecomendaria').checked = p.laRecomendaria;
     document.getElementById('reseniaNotas').value = p.reseniaNotas || '';
-}
+};
 
-function eliminarPelicula(id) {
-    if (confirm('¿Seguro que deseas eliminar esta película?')) {
-        let peliculas = obtenerPeliculas();
-        peliculas = peliculas.filter(p => p.id !== id);
-        guardarPeliculasEnStorage(peliculas);
-        cargarTabla();
+window.eliminarPelicula = async (id) => {
+    if (confirm('¿Eliminar esta película de la nube?')) {
+        await deleteDoc(doc(db, "peliculas", id));
     }
-}
+};
 
-function filtrarTabla() {
+window.filtrarTabla = () => {
     const texto = document.getElementById('buscador').value.toLowerCase();
-    const peliculas = obtenerPeliculas();
-    const filtradas = peliculas.filter(p => 
+    const filtradas = peliculasCache.filter(p => 
         p.titulo.toLowerCase().includes(texto) ||
-        (p.director && p.director.toLowerCase().includes(texto)) ||
-        (p.generoPrincipal && p.generoPrincipal.toLowerCase().includes(texto))
+        (p.director && p.director.toLowerCase().includes(texto))
     );
     cargarTabla(filtradas);
-}
+};
 
-function toggleQuienRecomendo() {
-    const chk = document.getElementById('esRecomendada');
-    const txt = document.getElementById('quienRecomendo');
-    txt.disabled = !chk.checked;
-    if (!chk.checked) txt.value = '';
-}
-
-function limpiarFormulario() {
+window.limpiarFormulario = () => {
     document.getElementById('formularioPelicula').reset();
     document.getElementById('peliculaId').value = '';
     document.getElementById('valCalificacion').innerText = '5';
-    document.getElementById('quienRecomendo').disabled = true;
     document.getElementById('fechaVista').valueAsDate = new Date();
-}
+};
 
-// --- ESTADÍSTICAS ---
-function abrirModalEstadisticas() {
-    const peliculas = obtenerPeliculas();
-    const contenedor = document.getElementById('contenidoEstadisticas');
+// --- RECOMENDACIONES ENTRE USUARIOS ---
+window.prepararRecomendacion = async (peliculaId) => {
+    peliculaSeleccionadaParaRec = peliculasCache.find(p => p.id === peliculaId);
+    if (!peliculaSeleccionadaParaRec) return;
 
-    if (peliculas.length === 0) {
-        contenedor.innerHTML = `<p class="text-muted text-center py-3">No hay suficientes datos para generar estadísticas.</p>`;
-        modalEstadisticasBS.show();
+    document.getElementById('recTituloPelicula').innerText = peliculaSeleccionadaParaRec.titulo;
+
+    // Cargar usuarios
+    const select = document.getElementById('selectUsuarioDestino');
+    select.innerHTML = '';
+    const querySnapshot = await getDocs(collection(db, "usuarios"));
+    querySnapshot.forEach((docSnap) => {
+        const u = docSnap.data();
+        if (u.uid !== usuarioActual.uid) {
+            select.innerHTML += `<option value="${u.uid}">${u.nombre} (${u.email})</option>`;
+        }
+    });
+
+    if (select.children.length === 0) {
+        alert("Aún no hay otros usuarios registrados para enviar recomendaciones.");
         return;
     }
 
-    const total = peliculas.length;
-    const promedio = (peliculas.reduce((acc, p) => acc + p.calificacion, 0) / total).toFixed(2);
-    const recomendadas = peliculas.filter(p => p.laRecomendaria).length;
+    modalRecomendarBS.show();
+};
 
-    const directores = {};
-    peliculas.forEach(p => { if (p.director) directores[p.director] = (directores[p.director] || 0) + 1; });
-    const topDirector = Object.entries(directores).sort((a, b) => b[1] - a[1])[0];
+window.enviarRecomendacion = async () => {
+    const paraUid = document.getElementById('selectUsuarioDestino').value;
+    const msg = document.getElementById('msgRecomendacion').value.trim();
 
-    contenedor.innerHTML = `
-        <ul class="list-group list-group-flush bg-transparent">
-            <li class="list-group-item bg-transparent text-white border-secondary"><strong>Total películas vistas:</strong> ${total}</li>
-            <li class="list-group-item bg-transparent text-white border-secondary"><strong>Calificación promedio:</strong> ★ ${promedio} / 10</li>
-            <li class="list-group-item bg-transparent text-white border-secondary"><strong>Películas que recomendarías:</strong> ${recomendadas} (${((recomendadas/total)*100).toFixed(1)}%)</li>
-            <li class="list-group-item bg-transparent text-white border-secondary"><strong>Director más registrado:</strong> ${topDirector ? `${topDirector[0]} (${topDirector[1]} película/s)` : 'N/A'}</li>
-        </ul>
-    `;
-    modalEstadisticasBS.show();
-}
+    const uDoc = await getDoc(doc(db, "usuarios", usuarioActual.uid));
 
-// --- EXPORTACIÓN ---
-function descargarArchivo(contenido, nombre, tipo) {
-    const blob = new Blob([contenido], { type: tipo });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = nombre;
-    a.click();
-    URL.revokeObjectURL(url);
-}
-
-function exportarJSON() {
-    const data = JSON.stringify(obtenerPeliculas(), null, 2);
-    descargarArchivo(data, `catalogo_${usuarioActual}.json`, 'application/json');
-}
-
-function exportarCSV() {
-    const peliculas = obtenerPeliculas();
-    if (peliculas.length === 0) return alert('No hay datos para exportar.');
-    
-    let csv = 'ID;Título;Año;Director;Género Principal;Categoría;Calificación;Fecha Vista\n';
-    peliculas.forEach(p => {
-        csv += `${p.id};"${p.titulo}";${p.anio || ''};"${p.director || ''}";"${p.generoPrincipal || ''}";"${p.categoria}";${p.calificacion};"${p.fechaVista || ''}"\n`;
+    await addDoc(collection(db, "recomendaciones"), {
+        deUid: usuarioActual.uid,
+        deNombre: uDoc.data().nombre,
+        paraUid: paraUid,
+        pelicula: peliculaSeleccionadaParaRec,
+        mensaje: msg,
+        leida: false,
+        fecha: new Date().toISOString()
     });
-    
-    descargarArchivo(csv, `catalogo_${usuarioActual}.csv`, 'text/csv');
-}
+
+    modalRecomendarBS.hide();
+    alert('¡Recomendación enviada con éxito!');
+};
+
+window.abrirModalBuzon = async () => {
+    const contenedor = document.getElementById('listaRecomendaciones');
+    contenedor.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-warning" role="status"></div></div>';
+    modalBuzonBS.show();
+
+    const q = query(collection(db, "recomendaciones"), where("paraUid", "==", usuarioActual.uid));
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+        contenedor.innerHTML = '<p class="text-muted text-center py-3">No has recibido recomendaciones todavía.</p>';
+        return;
+    }
+
+    contenedor.innerHTML = '';
+    snap.forEach(d => {
+        const r = d.data();
+        const card = document.createElement('div');
+        card.className = "card card-cine mb-3 p-3";
+        card.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h6 class="fw-bold mb-1"><i class="bi bi-person-fill text-danger me-1"></i> ${r.deNombre} te recomendó:</h6>
+                    <h5 class="text-warning fw-bold mb-2">🎬 ${r.pelicula.titulo} (${r.pelicula.anio || 'Año N/A'})</h5>
+                    <p class="small text-muted mb-2">"${r.mensaje || 'Sin mensaje'}"</p>
+                </div>
+                <button class="btn btn-sm btn-success" onclick="window.aceptarRecomendacion('${r.pelicula.titulo}', '${r.pelicula.director || ''}', '${r.pelicula.generoPrincipal || ''}', '${r.pelicula.categoria}')"><i class="bi bi-plus-circle"></i> Agregar a mi lista</button>
+            </div>
+        `;
+        contenedor.appendChild(card);
+    });
+};
+
+window.aceptarRecomendacion = async (titulo, director, genero, categoria) => {
+    await addDoc(collection(db, "peliculas"), {
+        uid: usuarioActual.uid,
+        titulo: titulo,
+        director: director,
+        generoPrincipal: genero,
+        categoria: categoria,
+        calificacion: 5,
+        fechaVista: new Date().toISOString().split('T')[0],
+        reseniaNotas: 'Agregada desde recomendación.'
+    });
+    alert(`¡${titulo} agregada a tu catálogo!`);
+};
+
+// --- ESTADÍSTICAS ---
+window.abrirModalEstadisticas = () => {
+    const contenedor = document.getElementById('contenidoEstadisticas');
+    if (peliculasCache.length === 0) {
+        contenedor.innerHTML = `<p class="text-muted text-center py-3">No hay datos en la nube.</p>`;
+    } else {
+        const total = peliculasCache.length;
+        const promedio = (peliculasCache.reduce((acc, p) => acc + p.calificacion, 0) / total).toFixed(2);
+        contenedor.innerHTML = `
+            <ul class="list-group list-group-flush bg-transparent">
+                <li class="list-group-item bg-transparent text-white border-secondary"><strong>Total películas en tu nube:</strong> ${total}</li>
+                <li class="list-group-item bg-transparent text-white border-secondary"><strong>Calificación promedio:</strong> ★ ${promedio} / 10</li>
+            </ul>
+        `;
+    }
+    modalEstadisticasBS.show();
+};

@@ -4,11 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎬 Iniciar Sesión - Gestor Cinéfilo</title>
-    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    <!-- Custom CSS -->
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="d-flex align-items-center justify-content-center min-vh-100 py-5">
@@ -16,7 +13,7 @@
     <div class="container" style="max-width: 450px;">
         <div class="text-center mb-4">
             <h1 class="brand-title display-5 fw-bold"><i class="bi bi-film me-2"></i>GESTOR CINÉFILO</h1>
-            <p class="text-muted">Ingresa a tu catálogo personal de películas</p>
+            <p class="text-muted">Conéctate a tu base de datos en la nube</p>
         </div>
 
         <div class="card card-cine">
@@ -33,14 +30,14 @@
 
             <div class="card-body p-4">
                 <div class="tab-content">
-                    <!-- Formulario Login -->
+                    <!-- Login -->
                     <div class="tab-pane fade show active" id="login-panel">
                         <form id="formLogin">
                             <div class="mb-3">
-                                <label class="form-label small text-uppercase text-muted fw-bold">Usuario</label>
+                                <label class="form-label small text-uppercase text-muted fw-bold">Correo Electrónico</label>
                                 <div class="input-group">
-                                    <span class="input-group-text bg-dark border-secondary text-muted"><i class="bi bi-person"></i></span>
-                                    <input type="text" id="loginUsuario" class="form-control" required placeholder="Tu usuario">
+                                    <span class="input-group-text bg-dark border-secondary text-muted"><i class="bi bi-envelope"></i></span>
+                                    <input type="email" id="loginEmail" class="form-control" required placeholder="correo@ejemplo.com">
                                 </div>
                             </div>
 
@@ -56,14 +53,22 @@
                         </form>
                     </div>
 
-                    <!-- Formulario Registro -->
+                    <!-- Registro -->
                     <div class="tab-pane fade" id="register-panel">
                         <form id="formRegister">
                             <div class="mb-3">
-                                <label class="form-label small text-uppercase text-muted fw-bold">Nuevo Usuario</label>
+                                <label class="form-label small text-uppercase text-muted fw-bold">Nombre de Usuario</label>
                                 <div class="input-group">
-                                    <span class="input-group-text bg-dark border-secondary text-muted"><i class="bi bi-person-plus"></i></span>
-                                    <input type="text" id="regUsuario" class="form-control" required placeholder="Crea un usuario">
+                                    <span class="input-group-text bg-dark border-secondary text-muted"><i class="bi bi-person"></i></span>
+                                    <input type="text" id="regNombre" class="form-control" required placeholder="Tu apodo visible">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small text-uppercase text-muted fw-bold">Correo Electrónico</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-dark border-secondary text-muted"><i class="bi bi-envelope-plus"></i></span>
+                                    <input type="email" id="regEmail" class="form-control" required placeholder="correo@ejemplo.com">
                                 </div>
                             </div>
 
@@ -71,11 +76,11 @@
                                 <label class="form-label small text-uppercase text-muted fw-bold">Contraseña</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-dark border-secondary text-muted"><i class="bi bi-shield-lock"></i></span>
-                                    <input type="password" id="regPassword" class="form-control" required placeholder="Mínimo 4 caracteres">
+                                    <input type="password" id="regPassword" class="form-control" required placeholder="Mínimo 6 caracteres">
                                 </div>
                             </div>
 
-                            <button type="submit" class="btn btn-outline-light w-100 py-2"><i class="bi bi-check-circle me-1"></i> Crear Cuenta</button>
+                            <button type="submit" class="btn btn-outline-light w-100 py-2"><i class="bi bi-check-circle me-1"></i> Crear Cuenta en la Nube</button>
                         </form>
                     </div>
                 </div>
@@ -85,54 +90,67 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Lógica de Autenticación Local
-        const USERS_KEY = 'cinefilo_usuarios_db';
-        const SESSION_KEY = 'cinefilo_usuario_activo';
 
-        // Redirigir si ya está logueado
-        if (localStorage.getItem(SESSION_KEY)) {
-            window.location.href = 'index.html';
-        }
+    <!-- Script de Firebase (Módulos JS) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        function obtenerUsuarios() {
-            const data = localStorage.getItem(USERS_KEY);
-            return data ? JSON.parse(data) : [];
-        }
+        // Configuración con tus credenciales
+        const firebaseConfig = {
+            apiKey: "AIzaSyAifRBdl7eQZ78kkX0NZW7bH7Ph__pfcDI",
+            authDomain: "gestor-cinefilo-web.firebaseapp.com",
+            projectId: "gestor-cinefilo-web",
+            storageBucket: "gestor-cinefilo-web.firebasestorage.app",
+            messagingSenderId: "1004373304427",
+            appId: "1:1004373304427:web:e5b438395f54817613bd2e",
+            measurementId: "G-X9RRQ8GCJM"
+        };
 
-        // Registro
-        document.getElementById('formRegister').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const usuario = document.getElementById('regUsuario').value.trim().toLowerCase();
-            const pass = document.getElementById('regPassword').value;
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
-            if (pass.length < 4) return alert('La contraseña debe tener al menos 4 caracteres.');
-
-            const usuarios = obtenerUsuarios();
-            if (usuarios.find(u => u.usuario === usuario)) {
-                return alert('El nombre de usuario ya existe. Elige otro.');
-            }
-
-            usuarios.push({ usuario, pass });
-            localStorage.setItem(USERS_KEY, JSON.stringify(usuarios));
-            localStorage.setItem(SESSION_KEY, usuario);
-            window.location.href = 'index.html';
+        // Si ya está logueado, enviar al panel
+        onAuthStateChanged(auth, (user) => {
+            if (user) window.location.href = 'index.html';
         });
 
         // Login
-        document.getElementById('formLogin').addEventListener('submit', (e) => {
+        document.getElementById('formLogin').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const usuario = document.getElementById('loginUsuario').value.trim().toLowerCase();
+            const email = document.getElementById('loginEmail').value;
             const pass = document.getElementById('loginPassword').value;
 
-            const usuarios = obtenerUsuarios();
-            const userMatch = usuarios.find(u => u.usuario === usuario && u.pass === pass);
-
-            if (userMatch) {
-                localStorage.setItem(SESSION_KEY, usuario);
+            try {
+                await signInWithEmailAndPassword(auth, email, pass);
                 window.location.href = 'index.html';
-            } else {
-                alert('Usuario o contraseña incorrectos.');
+            } catch (error) {
+                alert('Error al iniciar sesión: ' + error.message);
+            }
+        });
+
+        // Registro
+        document.getElementById('formRegister').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nombre = document.getElementById('regNombre').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const pass = document.getElementById('regPassword').value;
+
+            if (pass.length < 6) return alert('La contraseña debe tener al menos 6 caracteres.');
+
+            try {
+                const creds = await createUserWithEmailAndPassword(auth, email, pass);
+                // Guardar perfil público en Firestore para poder recomendarse entre sí
+                await setDoc(doc(db, "usuarios", creds.user.uid), {
+                    nombre: nombre,
+                    email: email,
+                    uid: creds.user.uid
+                });
+                window.location.href = 'index.html';
+            } catch (error) {
+                alert('Error al registrar usuario: ' + error.message);
             }
         });
     </script>
