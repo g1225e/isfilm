@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { 
-    getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, 
+    getFirestore, collection, addDoc, setDoc, updateDoc, deleteDoc, doc, 
     getDoc, getDocs, query, where, onSnapshot 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
@@ -22,7 +22,8 @@ const db = getFirestore(app);
 let usuarioActual = null;
 let peliculasCache = [];
 let peliculaSeleccionadaParaRec = null;
-let modalRecomendarBS, modalBuzonBS, modalEstadisticasBS;
+let modalRecomendarBS, modalBuzonBS, modalEstadisticasBS, modalComunidadBS;
+let misSeguidosCache = new Set(); // uids de las personas que YO sigo (para no repetir consultas)
 
 // Verificar sesión
 onAuthStateChanged(auth, async (user) => {
@@ -41,6 +42,7 @@ onAuthStateChanged(auth, async (user) => {
     inicializarModales();
     escucharPeliculasEnTiempoReal();
     escucharRecomendacionesEnTiempoReal();
+    actualizarContadoresSeguimiento();
 });
 
 document.getElementById('btnCerrarSesion').addEventListener('click', () => {
@@ -52,6 +54,7 @@ function inicializarModales() {
     modalRecomendarBS = new bootstrap.Modal(document.getElementById('modalRecomendar'));
     modalBuzonBS = new bootstrap.Modal(document.getElementById('modalBuzon'));
     modalEstadisticasBS = new bootstrap.Modal(document.getElementById('modalEstadisticas'));
+    modalComunidadBS = new bootstrap.Modal(document.getElementById('modalComunidad'));
     document.getElementById('fechaVista').valueAsDate = new Date();
     document.getElementById('formularioPelicula').addEventListener('submit', guardarPelicula);
 }
@@ -270,6 +273,109 @@ window.aceptarRecomendacion = async (titulo, director, genero, categoria) => {
     });
     alert(`¡${titulo} agregada a tu catálogo!`);
 };
+
+// --- SEGUIMIENTO ENTRE USUARIOS ---
+
+// Devuelve el ID compuesto y determinístico de una relación de seguimiento
+function idSeguimiento(seguidorUid, seguidoUid) {
+    return `${seguidorUid}_${seguidoUid}`;
+}
+
+window.abrirModalComunidad = async () => {
+    modalComunidadBS.show();
+    await refrescarMisSeguidos();
+    window.cargarListaComunidad('todos');
+};
+
+// Trae (y cachea) la lista de uids que el usuario actual sigue
+async function refrescarMisSeguidos() {
+    const q = query(collection(db, "seguidores"), where("seguidorUid", "==", usuarioActual.uid));
+    const snap = await getDocs(q);
+    misSeguidosCache = new Set(snap.docs.map(d => d.data().seguidoUid));
+}
+
+// Carga cada pestaña del modal Comunidad: 'todos', 'siguiendo' o 'seguidores'
+window.cargarListaComunidad = async (modo) => {
+    const idPanel = modo === 'todos' ? 'panelDescubrir'
+                  : modo === 'siguiendo' ? 'panelSiguiendo'
+                  : 'panelSeguidores';
+    const contenedor = document.getElementById(idPanel);
+    contenedor.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-info" role="status"></div></div>';
+
+    let usuarios = [];
+
+    if (modo === 'todos') {
+        const snap = await getDocs(collection(db, "usuarios"));
+        usuarios = snap.docs.map(d => d.data()).filter(u => u.uid !== usuarioActual.uid);
+    } else if (modo === 'siguiendo') {
+        usuarios = await Promise.all(
+            [...misSeguidosCache].map(async uid => (await getDoc(doc(db, "usuarios", uid))).data())
+        );
+    } else { // seguidores
+        const q = query(collection(db, "seguidores"), where("seguidoUid", "==", usuarioActual.uid));
+        const snap = await getDocs(q);
+        usuarios = await Promise.all(
+            snap.docs.map(async d => (await getDoc(doc(db, "usuarios", d.data().seguidorUid))).data())
+        );
+    }
+
+    usuarios = usuarios.filter(Boolean); // por si algún doc de usuario ya no existe
+
+    if (usuarios.length === 0) {
+        const mensaje = modo === 'todos' ? 'Aún no hay otros usuarios registrados.'
+                       : modo === 'siguiendo' ? 'Todavía no sigues a nadie. Ve a "Descubrir" para empezar.'
+                       : 'Todavía nadie te sigue.';
+        contenedor.innerHTML = `<p class="text-muted text-center py-4">${mensaje}</p>`;
+        return;
+    }
+
+    contenedor.innerHTML = '';
+    usuarios.forEach(u => {
+        const yaLoSigo = misSeguidosCache.has(u.uid);
+        const fila = document.createElement('div');
+        fila.className = "d-flex justify-content-between align-items-center py-2 border-bottom border-secondary";
+        fila.innerHTML = `
+            <div>
+                <i class="bi bi-person-circle text-danger me-2"></i>
+                <span class="fw-bold">${u.nombre}</span>
+                <span class="text-muted small ms-1">${u.email}</span>
+            </div>
+            <button class="btn btn-sm ${yaLoSigo ? 'btn-outline-secondary' : 'btn-info'}"
+                    onclick="window.toggleSeguir('${u.uid}', '${modo}')">
+                <i class="bi ${yaLoSigo ? 'bi-person-dash-fill' : 'bi-person-plus-fill'} me-1"></i>
+                ${yaLoSigo ? 'Dejar de seguir' : 'Seguir'}
+            </button>
+        `;
+        contenedor.appendChild(fila);
+    });
+};
+
+// Sigue o deja de seguir a un usuario, y refresca la vista actual
+window.toggleSeguir = async (uidDestino, modoActual) => {
+    const idRel = idSeguimiento(usuarioActual.uid, uidDestino);
+    if (misSeguidosCache.has(uidDestino)) {
+        await deleteDoc(doc(db, "seguidores", idRel));
+    } else {
+        await setDoc(doc(db, "seguidores", idRel), {
+            seguidorUid: usuarioActual.uid,
+            seguidoUid: uidDestino,
+            fecha: new Date().toISOString()
+        });
+    }
+    await refrescarMisSeguidos();
+    await actualizarContadoresSeguimiento();
+    window.cargarListaComunidad(modoActual);
+};
+
+// Actualiza el texto "X siguiendo · Y seguidores" junto al nombre de usuario
+async function actualizarContadoresSeguimiento() {
+    const [siguiendoSnap, seguidoresSnap] = await Promise.all([
+        getDocs(query(collection(db, "seguidores"), where("seguidorUid", "==", usuarioActual.uid))),
+        getDocs(query(collection(db, "seguidores"), where("seguidoUid", "==", usuarioActual.uid)))
+    ]);
+    document.getElementById('contadoresSeguimiento').innerText =
+        `· ${siguiendoSnap.size} siguiendo · ${seguidoresSnap.size} seguidores`;
+}
 
 // --- ESTADÍSTICAS ---
 window.abrirModalEstadisticas = () => {

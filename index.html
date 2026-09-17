@@ -17,13 +17,21 @@
                 <i class="bi bi-film me-2"></i>GESTOR CINÉFILO
             </span>
             <div class="d-flex align-items-center gap-2">
+                <!-- Botón Comunidad (seguimiento entre usuarios) -->
+                <button class="btn btn-outline-info btn-sm px-3 rounded-3" onclick="window.abrirModalComunidad()">
+                    <i class="bi bi-people-fill me-1"></i> Comunidad
+                </button>
+
                 <!-- Botón Buzón de Recomendaciones -->
                 <button class="btn btn-outline-warning btn-sm px-3 rounded-3 position-relative" onclick="abrirModalBuzon()">
                     <i class="bi bi-bell-fill me-1"></i> Recomendaciones
                     <span id="badgeNotificaciones" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">0</span>
                 </button>
 
-                <span class="text-muted small mx-2"><i class="bi bi-person-circle text-danger me-1"></i> <span id="nombreUsuarioActivo" class="fw-bold text-white">Cargando...</span></span>
+                <span class="text-muted small mx-2">
+                    <i class="bi bi-person-circle text-danger me-1"></i> <span id="nombreUsuarioActivo" class="fw-bold text-white">Cargando...</span>
+                    <span id="contadoresSeguimiento" class="text-muted ms-1"></span>
+                </span>
                 
                 <button class="btn btn-outline-light btn-sm px-3 rounded-3" onclick="abrirModalEstadisticas()">
                     <i class="bi bi-bar-chart-line-fill text-info me-1"></i> Estadísticas
@@ -139,6 +147,36 @@
                                 <tr><td colspan="6" class="text-center py-5 text-muted"><div class="spinner-border text-danger" role="status"></div><div class="mt-2">Sincronizando con la nube...</div></td></tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Comunidad (Seguimiento entre usuarios) -->
+    <div class="modal fade" id="modalComunidad" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content modal-content-cine">
+                <div class="modal-header border-bottom border-secondary">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-people-fill text-info me-2"></i> Comunidad Cinéfila</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <ul class="nav nav-tabs nav-justified border-bottom border-secondary mb-3" id="comunidadTabs">
+                        <li class="nav-item">
+                            <button class="nav-link active text-white fw-bold" data-bs-toggle="tab" data-bs-target="#panelDescubrir" type="button" onclick="window.cargarListaComunidad('todos')">Descubrir</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link text-white fw-bold" data-bs-toggle="tab" data-bs-target="#panelSiguiendo" type="button" onclick="window.cargarListaComunidad('siguiendo')">Siguiendo</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link text-white fw-bold" data-bs-toggle="tab" data-bs-target="#panelSeguidores" type="button" onclick="window.cargarListaComunidad('seguidores')">Seguidores</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="panelDescubrir"></div>
+                        <div class="tab-pane fade" id="panelSiguiendo"></div>
+                        <div class="tab-pane fade" id="panelSeguidores"></div>
                     </div>
                 </div>
             </div>
