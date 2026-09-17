@@ -37,7 +37,7 @@
                                 <label class="form-label small text-uppercase text-muted fw-bold">Correo Electrónico</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-dark border-secondary text-muted"><i class="bi bi-envelope"></i></span>
-                                    <input type="email" id="loginEmail" class="form-control" required placeholder="correo@ejemplo.com">
+                                    <input type="email" id="loginEmail" class="form-control" required placeholder="correo@ejemplo.com" autocapitalize="off" autocorrect="off" spellcheck="false">
                                 </div>
                             </div>
 
@@ -68,7 +68,7 @@
                                 <label class="form-label small text-uppercase text-muted fw-bold">Correo Electrónico</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-dark border-secondary text-muted"><i class="bi bi-envelope-plus"></i></span>
-                                    <input type="email" id="regEmail" class="form-control" required placeholder="correo@ejemplo.com">
+                                    <input type="email" id="regEmail" class="form-control" required placeholder="correo@ejemplo.com" autocapitalize="off" autocorrect="off" spellcheck="false">
                                 </div>
                             </div>
 
@@ -120,8 +120,8 @@
         // Login
         document.getElementById('formLogin').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const email = document.getElementById('loginEmail').value;
-            const pass = document.getElementById('loginPassword').value;
+            const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+            const pass = document.getElementById('loginPassword').value.trim();
 
             try {
                 await signInWithEmailAndPassword(auth, email, pass);
@@ -135,7 +135,7 @@
         document.getElementById('formRegister').addEventListener('submit', async (e) => {
             e.preventDefault();
             const nombre = document.getElementById('regNombre').value.trim();
-            const email = document.getElementById('regEmail').value.trim();
+            const email = document.getElementById('regEmail').value.trim().toLowerCase();
             const pass = document.getElementById('regPassword').value;
 
             if (pass.length < 6) return alert('La contraseña debe tener al menos 6 caracteres.');
