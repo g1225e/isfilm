@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebas
 import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { 
     getFirestore, collection, addDoc, setDoc, updateDoc, deleteDoc, doc, 
-    getDoc, getDocs, query, where, onSnapshot 
+    getDoc, getDocs, query, where, orderBy, onSnapshot 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -22,8 +22,11 @@ const db = getFirestore(app);
 let usuarioActual = null;
 let peliculasCache = [];
 let peliculaSeleccionadaParaRec = null;
-let modalRecomendarBS, modalBuzonBS, modalEstadisticasBS, modalComunidadBS;
+let modalRecomendarBS, modalBuzonBS, modalEstadisticasBS, modalComunidadBS, modalChatBS;
 let misSeguidosCache = new Set(); // uids de las personas que YO sigo (para no repetir consultas)
+let chatDestinoUid = null;
+let chatDestinoNombre = null;
+let chatDesuscribir = null; // función para dejar de escuchar mensajes al cerrar el chat
 
 // Verificar sesión
 onAuthStateChanged(auth, async (user) => {
@@ -33,11 +36,20 @@ onAuthStateChanged(auth, async (user) => {
     }
     usuarioActual = user;
 
-    // Obtener nombre de usuario
-    const uDoc = await getDoc(doc(db, "usuarios", user.uid));
-    if (uDoc.exists()) {
-        document.getElementById('nombreUsuarioActivo').innerText = uDoc.data().nombre.toUpperCase();
+    // Obtener (o crear si falta) el perfil del usuario en Firestore
+    let uDoc = await getDoc(doc(db, "usuarios", user.uid));
+    if (!uDoc.exists()) {
+        // El documento de perfil nunca se creó (registro fallido a medias, cuenta creada
+        // manualmente en Firebase, etc.) -> lo creamos ahora mismo para autorepararlo.
+        const nombrePorDefecto = user.email ? user.email.split('@')[0] : 'Usuario';
+        await setDoc(doc(db, "usuarios", user.uid), {
+            nombre: nombrePorDefecto,
+            email: user.email,
+            uid: user.uid
+        });
+        uDoc = await getDoc(doc(db, "usuarios", user.uid));
     }
+    document.getElementById('nombreUsuarioActivo').innerText = uDoc.data().nombre.toUpperCase();
 
     inicializarModales();
     escucharPeliculasEnTiempoReal();
@@ -55,6 +67,10 @@ function inicializarModales() {
     modalBuzonBS = new bootstrap.Modal(document.getElementById('modalBuzon'));
     modalEstadisticasBS = new bootstrap.Modal(document.getElementById('modalEstadisticas'));
     modalComunidadBS = new bootstrap.Modal(document.getElementById('modalComunidad'));
+    modalChatBS = new bootstrap.Modal(document.getElementById('modalChat'));
+    document.getElementById('modalChat').addEventListener('hidden.bs.modal', () => {
+        if (chatDesuscribir) { chatDesuscribir(); chatDesuscribir = null; }
+    });
     document.getElementById('fechaVista').valueAsDate = new Date();
     document.getElementById('formularioPelicula').addEventListener('submit', guardarPelicula);
 }
@@ -340,11 +356,16 @@ window.cargarListaComunidad = async (modo) => {
                 <span class="fw-bold">${u.nombre}</span>
                 <span class="text-muted small ms-1">${u.email}</span>
             </div>
-            <button class="btn btn-sm ${yaLoSigo ? 'btn-outline-secondary' : 'btn-info'}"
-                    onclick="window.toggleSeguir('${u.uid}', '${modo}')">
-                <i class="bi ${yaLoSigo ? 'bi-person-dash-fill' : 'bi-person-plus-fill'} me-1"></i>
-                ${yaLoSigo ? 'Dejar de seguir' : 'Seguir'}
-            </button>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-light" onclick="window.abrirChat('${u.uid}', '${u.nombre}')" title="Chatear">
+                    <i class="bi bi-chat-dots-fill"></i>
+                </button>
+                <button class="btn btn-sm ${yaLoSigo ? 'btn-outline-secondary' : 'btn-info'}"
+                        onclick="window.toggleSeguir('${u.uid}', '${modo}')">
+                    <i class="bi ${yaLoSigo ? 'bi-person-dash-fill' : 'bi-person-plus-fill'} me-1"></i>
+                    ${yaLoSigo ? 'Dejar de seguir' : 'Seguir'}
+                </button>
+            </div>
         `;
         contenedor.appendChild(fila);
     });
@@ -376,6 +397,104 @@ async function actualizarContadoresSeguimiento() {
     document.getElementById('contadoresSeguimiento').innerText =
         `· ${siguiendoSnap.size} siguiendo · ${seguidoresSnap.size} seguidores`;
 }
+
+// --- CHAT DIRECTO ENTRE USUARIOS ---
+
+// ID determinístico e igual para ambos participantes, sin importar quién lo abra primero
+function idChat(uid1, uid2) {
+    return [uid1, uid2].sort().join('_');
+}
+
+window.abrirChat = (uidDestino, nombreDestino) => {
+    chatDestinoUid = uidDestino;
+    chatDestinoNombre = nombreDestino;
+    document.getElementById('chatNombreDestino').innerText = nombreDestino;
+    document.getElementById('chatMensajes').innerHTML =
+        '<div class="text-center py-3"><div class="spinner-border text-danger" role="status"></div></div>';
+    document.getElementById('chatInputTexto').value = '';
+    document.getElementById('chatAdjuntoPreview').classList.add('d-none');
+
+    // Llenar el selector de "mis películas" para poder adjuntarlas al mensaje
+    const select = document.getElementById('chatSelectPelicula');
+    select.innerHTML = '<option value="">📎 Adjuntar una película de mi catálogo (opcional)</option>';
+    peliculasCache.forEach(p => {
+        select.innerHTML += `<option value="${p.id}">${p.titulo} (${p.anio || 'N/A'})</option>`;
+    });
+
+    modalComunidadBS.hide();
+    modalChatBS.show();
+
+    // Si ya había una suscripción de un chat anterior abierto, la cerramos primero
+    if (chatDesuscribir) chatDesuscribir();
+
+    const chatId = idChat(usuarioActual.uid, uidDestino);
+    const q = query(collection(db, "chats", chatId, "mensajes"), orderBy("fecha", "asc"));
+    chatDesuscribir = onSnapshot(q, (snapshot) => {
+        const contenedor = document.getElementById('chatMensajes');
+        if (snapshot.empty) {
+            contenedor.innerHTML = '<p class="text-muted text-center small py-3">Aún no hay mensajes. ¡Saluda!</p>';
+            return;
+        }
+        contenedor.innerHTML = '';
+        snapshot.forEach(docSnap => {
+            const m = docSnap.data();
+            const esMio = m.deUid === usuarioActual.uid;
+            const burbuja = document.createElement('div');
+            burbuja.className = `d-flex mb-2 ${esMio ? 'justify-content-end' : 'justify-content-start'}`;
+
+            let contenidoPelicula = '';
+            if (m.peliculaAdjunta) {
+                const p = m.peliculaAdjunta;
+                contenidoPelicula = `
+                    <div class="border-top border-secondary mt-2 pt-2">
+                        <div class="fw-bold">🎬 ${p.titulo} ${p.anio ? '(' + p.anio + ')' : ''}</div>
+                        ${!esMio ? `<button class="btn btn-sm btn-success mt-1"
+                            onclick="window.aceptarRecomendacion('${p.titulo}', '${p.director || ''}', '${p.genero || ''}', '${p.categoria || 'Otra'}')">
+                            <i class="bi bi-plus-circle"></i> Agregar a mi lista</button>` : ''}
+                    </div>`;
+            }
+
+            burbuja.innerHTML = `
+                <div class="p-2 rounded-3" style="max-width: 75%; background-color: ${esMio ? '#8b0000' : '#2a2a2a'};">
+                    ${m.texto ? `<div>${m.texto}</div>` : ''}
+                    ${contenidoPelicula}
+                </div>
+            `;
+            contenedor.appendChild(burbuja);
+        });
+        contenedor.scrollTop = contenedor.scrollHeight;
+    });
+};
+
+window.enviarMensajeChat = async () => {
+    const texto = document.getElementById('chatInputTexto').value.trim();
+    const idPeliculaSel = document.getElementById('chatSelectPelicula').value;
+
+    if (!texto && !idPeliculaSel) return; // no enviar mensajes completamente vacíos
+
+    let peliculaAdjunta = null;
+    if (idPeliculaSel) {
+        const p = peliculasCache.find(pel => pel.id === idPeliculaSel);
+        if (p) {
+            peliculaAdjunta = {
+                titulo: p.titulo, anio: p.anio || null, director: p.director || '',
+                genero: p.generoPrincipal || '', categoria: p.categoria || 'Otra'
+            };
+        }
+    }
+
+    const chatId = idChat(usuarioActual.uid, chatDestinoUid);
+    await addDoc(collection(db, "chats", chatId, "mensajes"), {
+        deUid: usuarioActual.uid,
+        paraUid: chatDestinoUid,
+        texto: texto,
+        peliculaAdjunta: peliculaAdjunta,
+        fecha: new Date().toISOString()
+    });
+
+    document.getElementById('chatInputTexto').value = '';
+    document.getElementById('chatSelectPelicula').value = '';
+};
 
 // --- ESTADÍSTICAS ---
 window.abrirModalEstadisticas = () => {

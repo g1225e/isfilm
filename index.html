@@ -183,6 +183,31 @@
         </div>
     </div>
 
+    <!-- Modal Chat directo entre dos usuarios -->
+    <div class="modal fade" id="modalChat" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content modal-content-cine">
+                <div class="modal-header border-bottom border-secondary">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-chat-dots-fill text-danger me-2"></i> <span id="chatNombreDestino">Chat</span></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <div id="chatMensajes" style="height: 350px; overflow-y: auto;" class="mb-3 px-2"></div>
+                    <div id="chatAdjuntoPreview" class="small text-warning mb-2 d-none"></div>
+                    <div class="d-flex gap-2 mb-2">
+                        <select id="chatSelectPelicula" class="form-select form-select-sm">
+                            <option value="">📎 Adjuntar una película de mi catálogo (opcional)</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="chatInputTexto" class="form-control" placeholder="Escribe un mensaje..." onkeydown="if(event.key==='Enter') window.enviarMensajeChat();">
+                        <button class="btn btn-red" onclick="window.enviarMensajeChat()"><i class="bi bi-send-fill"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Recomendar Película a un Usuario -->
     <div class="modal fade" id="modalRecomendar" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
